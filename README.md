@@ -28,3 +28,23 @@ To get started with the materials in this repository, follow the instructions in
 
 ## Directory Structure
 
+
+## Prerequisites
+
+Ensure you have the following software and libraries installed:
+- Python 3.7 or higher
+- Jupyter Notebook
+- PyTorch
+- Hugging Face Transformers
+- Additional libraries listed in `requirements.txt`
+
+## Installation
+
+To set up the environment, clone the repository and install the required libraries:
+
+```bash
+git clone https://github.com/yourusername/Hands-on-LLMs-NLP-Transformers-Training.git
+cd Hands-on-LLMs-NLP-Transformers-Training
+pip install -r requirements.txt
+
+
