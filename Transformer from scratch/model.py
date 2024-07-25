@@ -30,10 +30,41 @@ class PositionalEnconding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
 
-        pe = pe.unsqueeze(0) # add a dimentio for batch (1, seq_len, d_model)
+        pe = pe.unsqueeze(0) # add a dimention for batch (1, seq_len, d_model)
 
         self.register_buffer('pe', pe) # save the pe
 
     def forward(self, x):
         x = x + self.pe[:, :x.shape[1], :].requires_grad(False) # do not recalculate this tensors that is why we use the requires_grad
         return self.dropout(x)
+
+class LayerNormalization(nn.Module):
+
+    def __init__(self, eps: float = 10**-6) -> None:
+        super().__init__()
+        self.eps = eps
+        self.alpha = nn.Parameter(torch.ones(1)) # Multiplied
+        self.bias = nn.Parameter(torch.zeros(0)) # Added 
+
+    def forward(self, x):
+        mean = x.mean(dim=-1, keepdim=True) # -1 for the last dimension(everything after the batch)
+        std = x.std(dim=-1, keepdim=True)
+        return self.alpha * (x - mean) / (std - self.eps) + self.bias
+
+
+class FeedForward(nn.Module): 
+
+    def __init__(self, d_model: int, d_ff: int, dropout: float) -> None: 
+        super().__init__()
+        self.linear_1 = nn.Linear(d_model, d_ff) # w1 and b1
+        self.dropout = nn.Dropout(dropout)
+        self.linear_2 = nn.Linear(d_ff, d_model) # w2 and b2
+    
+    def forward(self, x):
+        # (batch, seq_len, d_model) ---> (batch, seq_len, d_ff) ---> (batch, seq_len, d_model)
+        return self.linear_2(self.dropout(torch.relu(self.linear_1(x))))
+
+class MultiHeadAttention(nn.Module):
+
+    def __init__(self) -> None:
+        super().__init__()
