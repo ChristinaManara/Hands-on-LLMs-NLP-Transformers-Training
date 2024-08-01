@@ -3,17 +3,19 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 
 from dataset import BilingualDataset, causal_mask
-from model import Transformer
+from model import Transformer, build_transformer
+from config import get_config, get_weights_file_path
 
-from dataset import load_dataset 
+from datasets import load_dataset 
 from tokenizers import Tokenizer 
 from tokenizers.models import WordLevel 
 from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace 
 
 from pathlib import Path 
+import warnings
 
-from torch.utils.tensoboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from tqdm import tqdm
 
@@ -24,7 +26,7 @@ def get_all_sentences(ds, lang):
 def get_or_build_tokenizer(config, ds, lang):
     tokenizer_path = Path(config['tokenizer_file'].format(lang))
     if not Path.exists(tokenizer_path):
-        tokenizer = Tokenizer(WordLevel(ukn_token='[UNK]'))
+        tokenizer = Tokenizer(WordLevel(unk_token='[UNK]'))
         tokenizer.pre_tokenizer = Whitespace()
         trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
@@ -66,7 +68,7 @@ def get_ds(config):
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
 
-def get_model(config, vocab_src_len, vocab_tgt_len):
+def get_model(config, vocab_src_len, vocab_tgt_len, d_model=512):
     model = build_transformer(vocab_src_len, vocab_tgt_len, config['seq_len'], config['seq_len'], config['d_model'])
     return model
 
@@ -79,7 +81,7 @@ def train_model(config):
     Path(config['model_folder']).mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size(), d_model=512).to(device)
 
     # Tensorboard
     writer = SummaryWriter(config['experiment_name'])
@@ -97,7 +99,7 @@ def train_model(config):
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_step = state['global_step']
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]', label_smoothing=0.1)).to(device)
+    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
 
     for epoch in range(initial_epoch, config['num_epochs']):
         model.train()
@@ -122,7 +124,7 @@ def train_model(config):
 
             # Log the loss
             writer.add_scalar('train_loss', loss.item(), global_step)
-            write.flush()
+            writer.flush()
 
             # Backpropagate the loss
             loss.backward()
@@ -143,7 +145,7 @@ def train_model(config):
         }, model_filename)
 
 if __name__ == '__main__':
-    warnigns.filterwarnings('ignore')
+    warnings.filterwarnings('ignore')
     config = get_config()
     train_model(config)
 
