@@ -45,7 +45,8 @@ To set up the environment, clone the repository and install the required librari
 ```bash
 git clone https://github.com/yourusername/Hands-on-LLMs-NLP-Transformers-Training.git
 cd Hands-on-LLMs-NLP-Transformers-Training
-pip install -r requirements.txt```
+pip install -r requirements.txt
+```
 
 ```# Running Multiple Python Scripts in Google Colab
 
@@ -64,6 +65,6 @@ To access your files stored on Google Drive, you need to mount your Google Drive
 ```python
 from google.colab import drive
 drive.mount('/content/drive')
-
+```
 !python {your_file_name}.py
 
