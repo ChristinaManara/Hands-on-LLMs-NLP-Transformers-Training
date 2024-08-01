@@ -67,5 +67,4 @@ from google.colab import drive
 drive.mount('/content/drive')
 ```
 
-```!python {your_file_name}.py
-```
+```!python {your_file_name}.py```
