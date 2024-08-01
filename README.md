@@ -65,7 +65,6 @@ To access your files stored on Google Drive, you need to mount your Google Drive
 ```python
 from google.colab import drive
 drive.mount('/content/drive')
-```
 
-```!python {your_file_name}.py
+!python {your_file_name}.py
 ```
