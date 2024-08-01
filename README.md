@@ -47,4 +47,23 @@ git clone https://github.com/yourusername/Hands-on-LLMs-NLP-Transformers-Trainin
 cd Hands-on-LLMs-NLP-Transformers-Training
 pip install -r requirements.txt
 
+# Running Multiple Python Scripts in Google Colab
+
+This guide explains how to run multiple `.py` files stored on Google Drive in Google Colab.
+
+## Steps to Follow
+
+### 1. Open Google Colab
+
+Go to [Google Colab](https://colab.research.google.com/) and create a new notebook.
+
+### 2. Mount Google Drive
+
+To access your files stored on Google Drive, you need to mount your Google Drive to the Colab environment.
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+
+!python {your_file_name}.py
 
