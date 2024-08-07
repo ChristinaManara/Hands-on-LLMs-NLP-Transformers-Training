@@ -3,3 +3,8 @@ openai
 langchain
 python-dotenv
 langchain_openai 
+pypdf
+langchain-community
+sentence-transformers
+langchain_huggingface
+chromadb
