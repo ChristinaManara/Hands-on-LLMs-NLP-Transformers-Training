@@ -7,4 +7,6 @@ pypdf
 langchain-community
 sentence-transformers
 langchain_huggingface
-chromadb
+faiss-cpu
+langsmith
+langchainhub
