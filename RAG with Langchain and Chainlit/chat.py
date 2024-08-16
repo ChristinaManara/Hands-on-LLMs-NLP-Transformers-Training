@@ -16,7 +16,8 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
-
+from langchain.callbacks.base import BaseCallbackHandler
+from langchain.schema.runnable import Runnable, RunnablePassthrough, RunnableConfig
 
 from pypdf import PdfReader
 from io import BytesIO
@@ -31,37 +32,37 @@ os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_API_KEY"] = os.getenv('LANGCHAIN_API_KEY')
 
 # Define the prompt template
-# prompt = PromptTemplate(
-#     template="You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. \
-#     If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. \
-#     Question: {question} \
-#     Context: {context} \
-#     Answer:",
-#     input_variables=["question", "context"]
-# )
+prompt = PromptTemplate(
+    template="You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. \
+    If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. \
+    Question: {question} \
+    Context: {context} \
+    Answer:",
+    input_variables=["question", "context"]
+)
 
-system_template = """Use the following pieces of context to answer the users question.
-If you don't know the answer, just say that you don't know, don't try to make up an answer.
-ALWAYS return a "SOURCES" part in your answer.
-The "SOURCES" part should be a reference to the source of the document from which you got your answer.
+# system_template = """Use the following pieces of context to answer the users question.
+# If you don't know the answer, just say that you don't know, don't try to make up an answer.
+# ALWAYS return a "SOURCES" part in your answer.
+# The "SOURCES" part should be a reference to the source of the document from which you got your answer.
 
-Example of your response should be:
+# Example of your response should be:
 
-```
-The answer is foo
-SOURCES: xyz
-```
+# ```
+# The answer is foo
+# SOURCES: xyz
+# ```
 
-Begin!
-----------------
-{summaries}"""
+# Begin!
+# ----------------
+# {summaries}"""
 
-messages = [
-    SystemMessagePromptTemplate.from_template(system_template),
-    HumanMessagePromptTemplate.from_template("{question}"),
-]
-prompt = ChatPromptTemplate.from_messages(messages)
-chain_type_kwargs = {"prompt": prompt}
+# messages = [
+#     SystemMessagePromptTemplate.from_template(system_template),
+#     HumanMessagePromptTemplate.from_template("{question}"),
+# ]
+#prompt = ChatPromptTemplate.from_messages(messages)
+#chain_type_kwargs = {"prompt": prompt}
 
 @cl.on_chat_start
 async def on_chat_start():
@@ -114,55 +115,69 @@ async def on_chat_start():
     retriever = vectorstore.as_retriever()
 
     # LLM
-    # llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+
+    def format_docs(docs):
+        return "\n\n".join([d.page_content for d in docs])
 
     # Create chain
-    # rag_chain = (
-    #     {"context": retriever, "question": RunnablePassthrough()}
-    #     | prompt
-    #     | llm
-    #     | StrOutputParser()
-    # )
-
-    rag_chain = RetrievalQAWithSourcesChain.from_chain_type(
-        ChatOpenAI(model_name="gpt-4o-mini", temperature=0),
-        chain_type="stuff",
-        retriever=retriever,
+    chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
     )
 
+    # chain = RetrievalQAWithSourcesChain.from_chain_type(
+    #     ChatOpenAI(model_name="gpt-4o-mini", temperature=0),
+    #     chain_type="stuff",
+    #     retriever=retriever,
+    # )
 
     # Save the metadata and texts in the user session
     cl.user_session.set("metadatas", metadatas)
     cl.user_session.set("texts", splits)
 
-    # Send response back to user
-    await cl.Message(
-        content = "Content parsed! Ask me anything related to the weblink!"
-    ).send()
-
-    # Save the metadata and texts in the user session
-    # cl.user_session.set("texts", texts)
-
-    # Let the user know that the system is ready
-    msg.content = f"Processing `{file.name}` done. You can now ask questions!"
-    await msg.update()
-
     # Create user session to store data
-    cl.user_session.set("rag_chain", rag_chain)
+    cl.user_session.set("chain", chain)
 
 
 
 @cl.on_message # this function will be called every time a user inputs a message in the UI
 async def main(message: str):
     chain = cl.user_session.get("chain")  # type: RetrievalQAWithSourcesChain
-    print(chain)
-    cb = cl.AsyncLangchainCallbackHandler(
-        stream_final_answer=True, answer_prefix_tokens=["FINAL", "ANSWER"]
-    )
-    cb.answer_reached = True
-    res = await chain.acall(message, callbacks=[cb])
-    answer = res["answer"]
+    msg = cl.Message(content="")
 
-    await cl.Message(
-        content = answer
-    ).send()
+    class PostMessageHandler(BaseCallbackHandler):
+        """
+        Callback handler for handling the retriever and LLM processes.
+        Used to post the sources of the retrieved documents as a Chainlit element.
+        """
+
+        def __init__(self, msg: cl.Message):
+            BaseCallbackHandler.__init__(self)
+            self.msg = msg
+            self.sources = set()  # To store unique pairs
+
+        def on_retriever_end(self, documents, *, run_id, parent_run_id, **kwargs):
+            for d in documents:
+                source_page_pair = (d.metadata['source'], d.metadata['page'])
+                self.sources.add(source_page_pair)  # Add unique pairs to the set
+
+        def on_llm_end(self, response, *, run_id, parent_run_id, **kwargs):
+            if len(self.sources):
+                sources_text = "\n".join([f"{source}#page={page}" for source, page in self.sources])
+                self.msg.elements.append(
+                    cl.Text(name="Sources", content=sources_text, display="inline")
+                )
+
+    async for chunk in chain.astream(
+        message.content,
+        config=RunnableConfig(callbacks=[
+            cl.LangchainCallbackHandler(),
+            PostMessageHandler(msg)
+        ]),
+    ):
+        await msg.stream_token(chunk)
+
+    await msg.send()
