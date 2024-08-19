@@ -35,8 +35,7 @@ os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_API_KEY')
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_API_KEY"] = os.getenv('LANGCHAIN_API_KEY')
 
-#model_name = "mixedbread-ai/mxbai-embed-large-v1"
-model_name = "sentence-transformers/all-mpnet-base-v2"
+model_name = "sentence-transformers/all-MiniLM-l6-v2"
 model_kwargs = {'device': 'cpu'}
 hf = HuggingFaceEmbeddings(model_name=model_name, model_kwargs=model_kwargs)
 
@@ -75,7 +74,7 @@ async def main(message: str):
     docs = Document(page_content=pdf_text)
 
     # Split the text into chunks
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=20)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=100, chunk_overlap=10)
     splits = text_splitter.split_documents([docs])
 
     # Create the FAISS vector store
@@ -84,12 +83,9 @@ async def main(message: str):
     # LLM
     llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.4)
 
-    def format_docs(docs):
-        return "\n\n".join([d.page_content for d in docs])
-
     history = []
     # Define the prompt template
-    promptHist = PromptTemplate(
+    prompt_hist = PromptTemplate(
         template="You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. \
         If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise. \
         Chat History: {chat_history} \
@@ -109,17 +105,11 @@ async def main(message: str):
     qa = ConversationalRetrievalChain.from_llm(
         llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True,
         verbose = True,
-        combine_docs_chain_kwargs={'prompt': promptHist},
+        combine_docs_chain_kwargs={'prompt': prompt_hist},
         memory = memory,
         get_chat_history=lambda h : h,
     )
 
-    # answer = qa({"question" : message.content, "chat_history" : history})
-    # history.append((message.content, answer))
-    # print(answer)
-    
-    # # res = await cl.make_async(llm_chain.run)(message.content)
-    # await cl.Message(content=answer).send()
     # Get the answer from the ConversationalRetrievalChain
     response = await cl.make_async(qa.invoke)(
         {"question": message.content, "chat_history": history},
