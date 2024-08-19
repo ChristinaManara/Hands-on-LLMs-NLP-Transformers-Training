@@ -44,7 +44,8 @@ python-dotenv
 
 Install the dependencies using pip:
 
-```pip install -r requirements.txt```
+```pip install -r requirements.txt
+```
 
 ### Environment Variables
 
@@ -52,7 +53,8 @@ Create a .env file in the root directory of your project and add the following:
 
 ```OPENAI_API_KEY=your_openai_api_key
 LANGCHAIN_API_KEY=your_langchain_api_key
-LANGCHAIN_TRACING_V2=true```
+LANGCHAIN_TRACING_V2=true
+```
 
 ### Usage
 
@@ -60,6 +62,7 @@ Running the Application
 
 To start the Chainlit application, use the following command:
 
-```chainlit run your_script_name.py```
+```chainlit run your_script_name.py
+```
 
 ![Code Execution](https://github.com/ChristinaManara/Hands-on-LLMs-NLP-Transformers-Training/blob/main/RAG%20with%20Langchain%20and%20Chainlit/rag.gif)
