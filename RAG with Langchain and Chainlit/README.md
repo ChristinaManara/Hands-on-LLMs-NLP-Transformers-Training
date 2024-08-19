@@ -39,7 +39,6 @@ langchain-core
 langchain-community
 pymupdf
 sentence-transformers
-torch
 python-dotenv
 ```
 
