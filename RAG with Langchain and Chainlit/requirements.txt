@@ -10,3 +10,5 @@ langchain_huggingface
 faiss-cpu
 langsmith
 langchainhub
+PyMuPDF
+torch 
