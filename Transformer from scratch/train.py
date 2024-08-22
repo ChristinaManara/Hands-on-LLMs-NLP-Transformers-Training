@@ -15,6 +15,7 @@ from tokenizers.pre_tokenizers import Whitespace
 from pathlib import Path 
 import warnings
 
+import torchmetrics
 from torch.utils.tensorboard import SummaryWriter
 
 from tqdm import tqdm

@@ -10,6 +10,7 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
+from langchain.chains.summarize.chain import load_summarize_chain
 
 from dotenv import load_dotenv
 import os
@@ -22,21 +23,28 @@ os.environ["LANGCHAIN_API_KEY"] = os.getenv('LANGCHAIN_API_KEY')
 
 @cl.on_chat_start
 async def on_chat_start():
+    
+    res = await cl.AskUserMessage(content="Please provide a URL:", timeout=30).send()
+    cl.user_session.set("res", res)
 
+@cl.on_message # this function will be called every time a user inputs a message in the UI
+async def main(message: str):
+    res = cl.user_session.get("res")
+
+    await cl.Message(content="Please provide a summarization method on the above selection:").send()
     settings = await cl.ChatSettings(
             [
                 Select(
                     id="Method",
                     label="Summarization Methods.",
-                    values=["stuffing", "map-reduce", "refine"],
+                    values=["stuff", "map_reduce", "refine"],
                     initial_index=0,
                 )
             ]
         ).send()
     value = settings["Method"]
     #cl.user_session.set("method", value)
-
-    res = await cl.AskUserMessage(content="Please provide a URL:", timeout=30).send()
+    
     if res:
         await cl.Message(
             content=f"The URL you provided is: {res['output']}",
@@ -51,22 +59,26 @@ async def on_chat_start():
                 chunk_size_seconds=30,
             )
 
-    splits = loader.load()
+        splits = loader.load()
 
-    # LLM
-    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.4)
+        # LLM
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.4)
 
-    # Define prompt
-    prompt = ChatPromptTemplate.from_messages(
-        [("system", "Write a concise summary of the following:\\n\\n{context}")]
-    )
+        # Define prompt
+        prompt = ChatPromptTemplate.from_messages(
+            [("system", "Write a concise summary of the following:\\n\\n{context}")]
+        )
 
-    # Instantiate chain
-    chain = create_stuff_documents_chain(llm, prompt)
+        # # Instantiate chain
+        # chain = create_stuff_documents_chain(llm, prompt)
 
-    # Invoke chain
-    result = chain.invoke({"context": splits})
-    print(result)
+        # # Invoke chain
+        # result = chain.invoke({"context": splits})
+        # print(result)
 
-    # Send the response back to the user
-    await cl.Message(content=f"Answer: {result}").send()
+
+        chain = load_summarize_chain(llm, chain_type=value)
+        result = chain.run(splits)
+
+        # Send the response back to the user
+        await cl.Message(content=f"Answer: {result}").send()
