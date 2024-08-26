@@ -1,5 +1,5 @@
 import chainlit as cl
-from chainlit.input_widget import Select
+from chainlit.input_widget import Select, TextInput
 
 from langchain_community.document_loaders import YoutubeLoader
 from langchain_community.document_loaders.youtube import TranscriptFormat
@@ -21,64 +21,65 @@ os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_API_KEY')
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_API_KEY"] = os.getenv('LANGCHAIN_API_KEY')
 
+@cl.on_settings_update
+async def setup_agent(settings):
+    print("on_settings_update", settings)
+    
+    cl.user_session.set("url", settings["url"])
+    cl.user_session.set("method", settings["method"])
+    
+
 @cl.on_chat_start
 async def on_chat_start():
+    settings = await cl.ChatSettings(
+        [
+            TextInput(id="url", label="YouTube URL: "),
+            Select(
+                id="method",
+                label="Summarization Methods.",
+                values=["stuff", "map_reduce", "refine"],
+                initial_index=0,
+            )
+        ]
+    ).send()
+
+    cl.user_session.set("url", settings["url"])
+    cl.user_session.set("method", settings["method"])
     
-    res = await cl.AskUserMessage(content="Please provide a URL:", timeout=30).send()
-    cl.user_session.set("res", res)
+    
 
 @cl.on_message # this function will be called every time a user inputs a message in the UI
 async def main(message: str):
-    res = cl.user_session.get("res")
+    url = cl.user_session.get("url")
+    method = cl.user_session.get("method")
 
-    await cl.Message(content="Please provide a summarization method on the above selection:").send()
-    settings = await cl.ChatSettings(
-            [
-                Select(
-                    id="Method",
-                    label="Summarization Methods.",
-                    values=["stuff", "map_reduce", "refine"],
-                    initial_index=0,
-                )
-            ]
-        ).send()
-    value = settings["Method"]
-    #cl.user_session.set("method", value)
-    
-    if res:
-        await cl.Message(
-            content=f"The URL you provided is: {res['output']}",
-        ).send()
-        #cl.user_session.set("url", res['output'])
-        url = res['output']
+    await cl.Message(
+        content=f"The URL you provided is: {url}",
+    ).send()
 
-        loader = YoutubeLoader.from_youtube_url(
-                youtube_url=url,     
-                add_video_info=True,
-                transcript_format=TranscriptFormat.CHUNKS,
-                chunk_size_seconds=30,
-            )
+    await cl.Message(
+        content=f"The method you provided is: {method}",
+    ).send()
 
-        splits = loader.load()
-
-        # LLM
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.4)
-
-        # Define prompt
-        prompt = ChatPromptTemplate.from_messages(
-            [("system", "Write a concise summary of the following:\\n\\n{context}")]
+    loader = YoutubeLoader.from_youtube_url(
+            youtube_url=url,     
+            add_video_info=True,
+            transcript_format=TranscriptFormat.CHUNKS,
+            chunk_size_seconds=30,
         )
 
-        # # Instantiate chain
-        # chain = create_stuff_documents_chain(llm, prompt)
+    splits = loader.load()
 
-        # # Invoke chain
-        # result = chain.invoke({"context": splits})
-        # print(result)
+    # LLM
+    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.4)
 
+    # Define prompt
+    prompt = ChatPromptTemplate.from_messages(
+        [("system", "Write a concise summary of the following:\\n\\n{context}")]
+    )
 
-        chain = load_summarize_chain(llm, chain_type=value)
-        result = chain.run(splits)
+    chain = load_summarize_chain(llm, chain_type=method)
+    result = chain.run(splits)
 
-        # Send the response back to the user
-        await cl.Message(content=f"Answer: {result}").send()
+    # Send the response back to the user
+    await cl.Message(content=f"Answer: {result}").send()
