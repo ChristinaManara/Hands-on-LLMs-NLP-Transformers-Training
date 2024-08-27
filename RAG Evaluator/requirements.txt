@@ -1,0 +1,11 @@
+langchain
+langchain-openai
+langchain_experimental
+langchain_community
+docarray
+pydantic
+python-dotenv
+ruff
+bs4
+ipytest
+giskard[llm]
